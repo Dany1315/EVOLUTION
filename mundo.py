@@ -128,7 +128,7 @@ if btn_reset:
     st.session_state.max_geracao = 1
 
 # ==========================================
-# LOOP DE ATUALIZAÇÃO LOGICA
+# LOOP DE ATUALIZAÇÃO LÓGICA
 # ==========================================
 st.session_state.ciclo += 1
 st.session_state.tempo_clima -= 1
@@ -207,23 +207,23 @@ for ser in st.session_state.seres:
     ctx.closePath();
     """
 
-# Injeta a área gráfica integrada na interface Streamlit
+# Injeta a área gráfica integrada na interface Streamlit usando as variáveis corretas
 html_canvas = f"""
 <div style="text-align: center; background-color: #1e1e1e; padding: 10px; border-radius: 8px;">
-    <canvas id="mundoCanvas" width="{LARGURA}" height="{HEIGHT:=400}" style="border: 2px solid #555; background-color: {cor_fundo};"></canvas>
+    <canvas id="mundoCanvas" width="{LARGURA}" height="{ALTURA}" style="border: 2px solid #555; background-color: {cor_fundo};"></canvas>
 </div>
 <script>
     var canvas = document.getElementById('mundoCanvas');
     if (canvas) {{
         var ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, {LARGURA}, 400);
+        ctx.clearRect(0, 0, {LARGURA}, {ALTURA});
         {desenhar_abrigos}
         {desenhar_blocos}
         {desenhar_seres}
     }}
 </script>
 """
-st.components.v1.html(html_canvas, height=430)
+st.components.v1.html(html_canvas, height=ALTURA + 30)
 
 # ==========================================
 # PAINEL DE TELEMETRIA E DADOS EM TEMPO REAL
