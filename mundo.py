@@ -4,22 +4,22 @@ import math
 import time
 
 # ==========================================
-# CONFIGURAÇÃO DA PÁGINA STREAMLIT
+# CONFIGURAÇÃO DO AMBIENTE
 # ==========================================
-st.set_page_config(page_title="Mundo Artificial Evolutivo", layout="centered")
-st.title("🧠 Simulação de Vida Artificial Autônoma")
-st.markdown("Seres virtuais que aprendem a coletar blocos, construir abrigos e sobreviver a desastres naturais através de Algoritmos Genéticos.")
+st.set_page_config(page_title="Evolução Artificial Real", layout="centered")
+st.title("🧬 Algoritmo Genético: Evolução Visual Real")
+st.markdown("Nesta simulação, os seres **não possuem programação de comportamento**. Eles aprendem a cada geração através de seleção natural pura.")
 
-# Dimensões lógicas do mundo virtual
-LARGURA, ALTURA = 700, 500
+LARGURA, ALTURA = 700, 480
+DURACAO_GERACAO = 400  # Tempo de cada rodada para aprendizado
 
 # ==========================================
-# CLASSES DO MOTOR DE INTELIGÊNCIA ARTIFICIAL
+# ESTRUTURA NEURAL E GENÉTICA
 # ==========================================
 class Bloco:
     def __init__(self):
-        self.x = random.randint(30, LARGURA - 30)
-        self.y = random.randint(30, ALTURA - 30)
+        self.x = random.randint(40, LARGURA - 40)
+        self.y = random.randint(40, ALTURA - 40)
 
 class Abrigo:
     def __init__(self, x, y):
@@ -27,190 +27,235 @@ class Abrigo:
         self.y = y
 
 class Ser:
-    def __init__(self, x, y, cerebro=None):
+    def __init__(self, x, y, pesos=None):
         self.x = x
         self.y = y
         self.energia = 100.0
         self.blocos_coletados = 0
-        self.idade = 0
-        self.geracao = cerebro["geracao"] if cerebro else 1
+        self.abrigos_construidos = 0
+        self.tempo_protegido = 0
+        self.morto = False
         
-        # 18 pesos conectando 6 Entradas a 3 Saídas
-        if cerebro:
-            self.pesos = list(cerebro["pesos"])
-            self.mutar()
+        # Sentido do olhar para renderização
+        self.vx, self.vy = 1.0, 0.0
+        
+        # CÉREBRO: Rede Neural Simples (6 Entradas -> 3 Saídas = 18 Conexões/Pesos)
+        # Entradas: [Dist_Bloco_X, Dist_Bloco_Y, Dist_Abrigo_X, Dist_Abrigo_Y, Energia/Fome, Perigo_Clima]
+        # Saídas:   [Mover_X, Mover_Y, Decisão_Construir]
+        if pesos is not None:
+            self.pesos = pesos
         else:
             self.pesos = [random.uniform(-1.0, 1.0) for _ in range(18)]
 
-    def mutar(self):
-        """Pequena mutação no cérebro herdado para permitir o aprendizado"""
-        for i in range(len(self.pesos)):
-            if random.random() < 0.15:  # 15% de chance de mudar um comportamento
-                self.pesos[i] += random.uniform(-0.3, 0.3)
+    def calcular_fitness(self):
+        """Avalia matematicamente o quão bom esse ser foi em entender o ambiente"""
+        # Se ele coletou blocos, construiu e se protegeu no desastre, o fitness explode
+        return (self.blocos_coletados * 10) + (self.abrigos_construidos * 25) + (self.tempo_protegido * 0.5) + 0.1
 
     def pensar_e_agir(self, blocos, abrigos, clima):
-        self.idade += 1
-        self.energia -= 0.3  # Custo constante de sobrevivência
+        if self.morto:
+            return
 
-        # --- 1. CAPTAÇÃO DOS SENSORES (INPUTS) ---
-        dx_bloco, dy_bloco = 0.0, 0.0
+        self.energia -= 0.25
+
+        # 1. ENTRADAS DOS SENSORES (Percepção do ambiente ao redor)
+        db_x, db_y = 0.0, 0.0
         if blocos:
             b_perto = min(blocos, key=lambda b: math.hypot(b.x - self.x, b.y - self.y))
-            dx_bloco = (b_perto.x - self.x) / LARGURA
-            dy_bloco = (b_perto.y - self.y) / ALTURA
+            db_x = (b_perto.x - self.x) / LARGURA
+            db_y = (b_perto.y - self.y) / ALTURA
 
-        dx_abrigo, dy_abrigo = 0.0, 0.0
+        da_x, da_y = 0.0, 0.0
         if abrigos:
             a_perto = min(abrigos, key=lambda a: math.hypot(a.x - self.x, a.y - self.y))
-            dx_abrigo = (a_perto.x - self.x) / LARGURA
-            dy_abrigo = (a_perto.y - self.y) / ALTURA
+            da_x = (a_perto.x - self.x) / LARGURA
+            da_y = (a_perto.y - self.y) / ALTURA
 
         fome = (100.0 - self.energia) / 100.0
-        perigo_clima = 1.0 if clima in ["Seca", "Desastre Natural"] else 0.0
+        perigo = 1.0 if clima == "DESASTRE" else 0.0
 
-        # --- 2. PROCESSAMENTO NEURAL (TOMADA DE DECISÃO) ---
-        out_x = (dx_bloco * self.pesos[0] + dy_bloco * self.pesos[1] + fome * self.pesos[2] + 
-                 perigo_clima * self.pesos[3] + dx_abrigo * self.pesos[4] + dy_abrigo * self.pesos[5])
-        
-        out_y = (dx_bloco * self.pesos[6] + dy_bloco * self.pesos[7] + fome * self.pesos[8] + 
-                 perigo_clima * self.pesos[9] + dx_abrigo * self.pesos[10] + dy_abrigo * self.pesos[11])
-        
-        out_construir = (dx_bloco * self.pesos[12] + dy_bloco * self.pesos[13] + fome * self.pesos[14] + 
-                         perigo_clima * self.pesos[15] + dx_abrigo * self.pesos[16] + dy_abrigo * self.pesos[17])
+        # 2. PROCESSAMENTO NEURAL (A sinapse elétrica do cérebro artificial)
+        out_x = (db_x * self.pesos[0] + db_y * self.pesos[1] + da_x * self.pesos[2] + da_y * self.pesos[3] + fome * self.pesos[4] + perigo * self.pesos[5])
+        out_y = (db_x * self.pesos[6] + db_y * self.pesos[7] + da_x * self.pesos[8] + da_y * self.pesos[9] + fome * self.pesos[10] + perigo * self.pesos[11])
+        out_con = (db_x * self.pesos[12] + db_y * self.pesos[13] + da_x * self.pesos[14] + da_y * self.pesos[15] + fome * self.pesos[16] + perigo * self.pesos[17])
 
-        # --- 3. EXECUÇÃO DA AÇÃO ---
-        # Movimentação baseada no pensamento
-        self.x += max(-6, min(6, out_x * 6))
-        self.y += max(-6, min(6, out_y * 6))
+        # 3. AÇÃO FÍSICA
+        self.vx = max(-1, min(1, out_x)) * 6
+        self.vy = max(-1, min(1, out_y)) * 6
         
-        # Limites do mundo
-        self.x = max(10, min(LARGURA - 10, self.x))
-        self.y = max(10, min(ALTURA - 10, self.y))
+        self.x = max(15, min(LARGURA - 15, self.x + self.vx))
+        self.y = max(15, min(ALTURA - 15, self.y + self.vy))
 
-        # Decisão voluntária de usar blocos para construir
-        if out_construir > 0.5 and self.blocos_coletados >= 2:
+        # Decisão de construir abrigo
+        if out_con > 0.4 and self.blocos_coletados >= 2:
             self.blocos_coletados -= 2
+            self.abrigos_construidos += 1
             abrigos.append(Abrigo(self.x, self.y))
 
-        # --- 4. EFEITO DO CLIMA NO CORPO ---
-        if clima == "Seca":
-            self.energia -= 0.2
-        elif clima == "Desastre Natural":
-            # Verifica se o cérebro dele foi inteligente o suficiente para se mover para perto de um abrigo
-            em_seguranca = any(math.hypot(a.x - self.x, a.y - self.y) < 35 for a in abrigos)
-            if not em_seguranca:
-                self.energia -= 3.0  # Dano massivo por falta de abrigo
+        # 4. CHECAGEM DE CLIMA E SOBREVIVÊNCIA
+        if clima == "DESASTRE":
+            protegido = any(math.hypot(a.x - self.x, a.y - self.y) < 35 for a in abrigos)
+            if protegido:
+                self.tempo_protegido += 1
+            else:
+                self.energia -= 2.5  # Dano massivo por ignorar o ambiente
+
+        if self.energia <= 0:
+            self.morto = True
 
 # ==========================================
-# INICIALIZAÇÃO DO ESTADO DA SESSÃO (MUNDO)
+# MOTOR DE SELEÇÃO NATURAL E REPRODUÇÃO
 # ==========================================
-if "seres" not in st.session_state:
-    st.session_state.seres = [Ser(random.randint(50, LARGURA-50), random.randint(50, ALTURA-50)) for _ in range(20)]
-    st.session_state.blocos = [Bloco() for _ in range(40)]
+def evoluir_populacao(ancestrais):
+    """Pega os melhores da geração anterior e cria filhos inteligentes"""
+    # Ordena os seres pelo desempenho real (fitness)
+    ancestrais.sort(key=lambda s: s.calcular_fitness(), reverse=True)
+    
+    # Salva o campeão absoluto da rodada anterior para a telemetria
+    melhor_da_rodada = ancestrais[0]
+    
+    # Seleciona a metade superior (os sobreviventes mais aptos)
+    elite = ancestrais[:len(ancestrais)//2]
+    
+    novos_pesos_populacao = []
+    
+    while len(novos_pesos_populacao) < 15: # Mantém a população estável
+        papai = random.choice(elite)
+        mamae = random.choice(elite)
+        
+        # Crossover (Mistura de DNA - metade dos pensamentos de cada um)
+        filho_pesos = []
+        for i in range(18):
+            filho_pesos.append(papai.pesos[i] if random.random() < 0.5 else mamae.pesos[i])
+            
+        # Mutação Crítica (Permite descobrir novas estratégias)
+        for i in range(18):
+            if random.random() < 0.1:  # 10% de taxa de mutação
+                filho_pesos[i] += random.uniform(-0.4, 0.4)
+                
+        novos_pesos_populacao.append(filho_pesos)
+        
+    # Recria a população física com os cérebros evoluídos
+    nova_geracao = []
+    for pesos in novos_pesos_populacao:
+        nova_geracao.append(Ser(random.randint(100, LARGURA-100), random.randint(100, ALTURA-100), pesos))
+        
+    return nova_geracao, melhor_da_rodada.calcular_fitness()
+
+# ==========================================
+# CONTROLE DE ESTADO DO STREAMLIT
+# ==========================================
+if "geracao" not in st.session_state:
+    st.session_state.geracao = 1
+    st.session_state.cronometro = 0
+    st.session_state.seres = [Ser(random.randint(100, LARGURA-100), random.randint(100, ALTURA-100)) for _ in range(15)]
+    st.session_state.blocos = [Bloco() for _ in range(30)]
     st.session_state.abrigos = []
-    st.session_state.clima = "Normal"
-    st.session_state.tempo_clima = 30
-    st.session_state.ciclo = 0
-    st.session_state.max_geracao = 1
+    st.session_state.clima = "NORMAL"
+    st.session_state.historico_fitness = 0.0
 
-# Interface de controle no Streamlit
-col1, col2, col3, col4 = st.columns(4)
-btn_reset = col1.button("🔄 Reiniciar Mundo")
-velocidade = col2.slider("⚡ Velocidade (FPS)", 5, 30, 15)
-
-if btn_reset:
-    st.session_state.seres = [Ser(random.randint(50, LARGURA-50), random.randint(50, ALTURA-50)) for _ in range(20)]
-    st.session_state.blocos = [Bloco() for _ in range(40)]
+# Painel Superior
+c1, c2, c3, c4 = st.columns(4)
+if c1.button("🔄 Reiniciar Evolução"):
+    st.session_state.geracao = 1
+    st.session_state.cronometro = 0
+    st.session_state.seres = [Ser(random.randint(100, LARGURA-100), random.randint(100, ALTURA-100)) for _ in range(15)]
+    st.session_state.blocos = [Bloco() for _ in range(30)]
     st.session_state.abrigos = []
-    st.session_state.clima = "Normal"
-    st.session_state.tempo_clima = 30
-    st.session_state.ciclo = 0
-    st.session_state.max_geracao = 1
+    st.session_state.clima = "NORMAL"
+    st.session_state.historico_fitness = 0.0
+
+fps = c2.slider("⚡ Velocidade", 5, 60, 25)
 
 # ==========================================
-# LOOP DE ATUALIZAÇÃO LÓGICA
+# ATUALIZAÇÃO DO MUNDO (TICK DO RELÓGIO)
 # ==========================================
-st.session_state.ciclo += 1
-st.session_state.tempo_clima -= 1
+st.session_state.cronometro += 1
 
-# Mudança climática autônoma
-if st.session_state.tempo_clima <= 0:
-    st.session_state.clima = random.choice(["Normal", "Chuva", "Seca", "Desastre Natural"])
-    st.session_state.tempo_clima = 12 if st.session_state.clima == "Desastre Natural" else 40
+# Ciclo climático fixo para testar adaptabilidade
+if st.session_state.cronometro > 200:
+    st.session_state.clima = "DESASTRE"
+else:
+    st.session_state.clima = "NORMAL"
 
-# Efeito do Clima no ecossistema (Geração de recursos)
-if st.session_state.clima == "Chuva" and random.random() < 0.4:
+# Reposição natural de blocos na fase normal
+if st.session_state.clima == "NORMAL" and random.random() < 0.15 and len(st.session_state.blocos) < 40:
     st.session_state.blocos.append(Bloco())
-elif st.session_state.clima == "Normal" and random.random() < 0.2:
-    st.session_state.blocos.append(Bloco())
-elif st.session_state.clima == "Desastre Natural" and st.session_state.abrigos and random.random() < 0.15:
-    st.session_state.abrigos.pop(random.randint(0, len(st.session_state.abrigos) - 1)) # Destrói abrigo aleatório
 
-# Atualização dos Seres
-novos_seres = []
-for ser in st.session_state.seres[:]:
+# Atualiza agentes vivos
+for ser in st.session_state.seres:
     ser.pensar_e_agir(st.session_state.blocos, st.session_state.abrigos, st.session_state.clima)
     
-    # Comer / Coletar Bloco próximo
+    # Captura física do bloco
     for bloco in st.session_state.blocos[:]:
-        if math.hypot(bloco.x - ser.x, bloco.y - ser.y) < 18:
+        if not ser.morto and math.hypot(bloco.x - ser.x, bloco.y - ser.y) < 20:
             if bloco in st.session_state.blocos:
                 st.session_state.blocos.remove(bloco)
                 ser.blocos_coletados += 1
-                ser.energia = min(100.0, ser.energia + 35.0)
+                ser.energia = min(100.0, ser.energia + 35)
 
-    # Lógica de Reprodução Darwiniana (Passa a consciência adiante)
-    if ser.energia > 85 and ser.blocos_coletados >= 3 and random.random() < 0.1:
-        ser.energia -= 45
-        ser.blocos_coletados -= 3
-        dna_filho = {"pesos": ser.pesos, "geracao": ser.geracao}
-        novos_seres.append(Ser(ser.x + random.randint(-15, 15), ser.y + random.randint(-15, 15), dna_filho))
-        if ser.geracao + 1 > st.session_state.max_geracao:
-            st.session_state.max_geracao = ser.geracao + 1
-
-    # Filtrar mortos
-    if ser.energia <= 0:
-        st.session_state.seres.remove(ser)
-
-st.session_state.seres.extend(novos_seres)
-
-# Se houver extinção em massa, novos pioneiros surgem com cérebros em branco
-if len(st.session_state.seres) == 0:
-    st.session_state.seres = [Ser(random.randint(50, LARGURA-50), random.randint(50, ALTURA-50)) for _ in range(12)]
+# --- FIM DA GERAÇÃO: HORA DA SELEÇÃO NATURAL ---
+if st.session_state.cronometro >= DURACAO_GERACAO:
+    st.session_state.seres, melhor_score = evoluir_populacao(st.session_state.session_state.seres if "seres" in st.session_state else st.session_state.seres)
+    st.session_state.historico_fitness = melhor_score
+    st.session_state.blocos = [Bloco() for _ in range(30)]
     st.session_state.abrigos.clear()
+    st.session_state.cronometro = 0
+    st.session_state.geracao += 1
+    st.rerun()
 
 # ==========================================
-# RENDERIZAÇÃO GRÁFICA VIA HTML5 CANVAS
+# RENDERIZAÇÃO GRÁFICA INTERATIVA
 # ==========================================
-# Define a cor do mundo com base no clima atual
-cor_fundo = "#228B22"  # Verde Grama
-if st.session_state.clima == "Chuva": cor_fundo = "#2F4F4F"
-elif st.session_state.clima == "Seca": cor_fundo = "#8B7355"
-elif st.session_state.clima == "Desastre Natural": cor_fundo = "#800000"
+cor_fundo = "#34495E" if st.session_state.clima == "NORMAL" else "#7B241C"
 
-# Construção das strings de desenho dinâmico para os elementos
-desenhar_blocos = "".join([f"ctx.fillStyle = '#8B4513'; ctx.fillRect({b.x}, {b.y}, 8, 8);" for b in st.session_state.blocos])
-desenhar_abrigos = "".join([f"ctx.fillStyle = '#4682B4'; ctx.fillRect({a.x}, {a.y}, 18, 18);" for a in st.session_state.abrigos])
+# Transforma dados estruturados em comandos HTML5 Canvas
+desenhar_blocos = "".join([f"ctx.fillStyle = '#D35400'; ctx.fillRect({b.x-4}, {b.y-4}, 9, 9);" for b in st.session_state.blocos])
+desenhar_abrigos = "".join([f"ctx.fillStyle = '#2980B9'; ctx.fillRect({a.x-12}, {a.y-12}, 24, 24);" for a in st.session_state.abrigos])
 
 desenhar_seres = ""
 for ser in st.session_state.seres:
+    if ser.morto:
+        # Desenha uma pequena marca cinza se morreu de fome antes do fim do tempo
+        desenhar_seres += f"ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.fillRect({ser.x-3}, {ser.y-3}, 6, 6);"
+        continue
+        
     g = max(0, min(255, int(ser.energia * 2.55)))
     r = max(0, min(255, int((100 - ser.energia) * 2.55)))
+    
+    # Vetor de movimento real baseado nas saídas neurais
+    mag = math.hypot(ser.vx, ser.vy)
+    dx = (ser.vx / mag * 8) if mag > 0 else 0
+    dy = (ser.vy / mag * 8) if mag > 0 else 0
+    
     desenhar_seres += f"""
     ctx.beginPath();
-    ctx.arc({ser.x}, {ser.y}, 6, 0, 2 * Math.PI);
-    ctx.fillStyle = 'rgb({r}, {g}, 0)';
+    ctx.arc({ser.x}, {ser.y}, 9, 0, 2 * Math.PI);
+    ctx.fillStyle = 'rgb({r}, {g}, 40)';
     ctx.fill();
     ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 0.5;
+    ctx.lineWidth = 1.5;
     ctx.stroke();
-    ctx.closePath();
+    
+    // Direção da linha de visão do cérebro
+    ctx.beginPath();
+    ctx.moveTo({ser.x}, {ser.y});
+    ctx.lineTo({ser.x + dx}, {ser.y + dy});
+    ctx.strokeStyle = '#ffff00';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    
+    // Indicador de inventário de blocos
+    if({ser.blocos_coletados} > 0) {{
+        ctx.fillStyle = '#ffff00';
+        ctx.font = '9px Arial';
+        ctx.fillText('📦' + {ser.blocos_coletados}, {ser.x - 10}, {ser.y - 13});
+    }}
     """
 
-# Injeta a área gráfica integrada na interface Streamlit usando as variáveis corretas
 html_canvas = f"""
-<div style="text-align: center; background-color: #1e1e1e; padding: 10px; border-radius: 8px;">
-    <canvas id="mundoCanvas" width="{LARGURA}" height="{ALTURA}" style="border: 2px solid #555; background-color: {cor_fundo};"></canvas>
+<div style="text-align: center;">
+    <canvas id="mundoCanvas" width="{LARGURA}" height="{ALTURA}" style="border: 3px solid #2C3E50; background-color: {cor_fundo}; border-radius: 8px;"></canvas>
 </div>
 <script>
     var canvas = document.getElementById('mundoCanvas');
@@ -223,16 +268,14 @@ html_canvas = f"""
     }}
 </script>
 """
-st.components.v1.html(html_canvas, height=ALTURA + 30)
+st.components.v1.html(html_canvas, height=ALTURA + 25)
 
-# ==========================================
-# PAINEL DE TELEMETRIA E DADOS EM TEMPO REAL
-# ==========================================
-col4.metric(label="🌤️ Clima Atual", value=st.session_state.clima.upper())
-col1.metric(label="👥 População", value=len(st.session_state.seres))
-col2.metric(label="🪵 Blocos no Chão", value=len(st.session_state.blocos))
-col3.metric(label="🧬 Maior Geração", value=f"Gen {st.session_state.max_geracao}")
+# Telemetria do Painel
+c1.metric(label="🧬 Geração Atual", value=st.session_state.geracao)
+c2.metric(label="⏳ Tempo p/ Seleção", value=f"{DURACAO_GERACAO - st.session_state.cronometro} ticks")
+c3.metric(label="🏆 Melhor Score Anterior", value=f"{st.session_state.historico_fitness:.1f}")
+c4.metric(label="🌤️ Clima do Mundo", value=st.session_state.clima)
 
-# Força o Streamlit a atualizar a tela continuamente criando o efeito de animação
-time.sleep(1 / velocidade)
+# Loop contínuo
+time.sleep(1 / fps)
 st.rerun()
